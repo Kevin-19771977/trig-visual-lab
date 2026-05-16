@@ -113,34 +113,75 @@ def exact_special_values(angle: int):
     return values.get(angle, ("", "", ""))
 
 
-def draw_right_triangle(theta_deg: float, hyp: float):
+def draw_right_triangle(theta_deg: float, hyp: float, focus: str = "sin"):
     theta_rad = deg_to_rad(theta_deg)
     adjacent = hyp * math.cos(theta_rad)
     opposite = hyp * math.sin(theta_rad)
 
-    fig, ax = plt.subplots(figsize=(6.2, 4.8))
-    xs = [0, adjacent, adjacent, 0]
-    ys = [0, 0, opposite, 0]
-    ax.plot(xs, ys, linewidth=3)
-    ax.scatter([0, adjacent, adjacent], [0, 0, opposite], s=50)
+    if abs(adjacent) < EPS:
+        adjacent = 0.0
+    if abs(opposite) < EPS:
+        opposite = 0.0
 
-    size = min(adjacent, opposite) * 0.12 if min(adjacent, opposite) > 0 else 0.1
-    ax.plot([adjacent - size, adjacent - size, adjacent], [0, size, size], linewidth=1.8)
+    colors = {
+        "hypotenuse": "#f4a7b9",  # 粉紅色
+        "opposite": "#a7d8f0",    # 粉藍色
+        "adjacent": "#b8e6c1",    # 粉綠色
+    }
 
-    arc_r = min(adjacent, opposite) * 0.22 if min(adjacent, opposite) > 0 else 0.2
-    arc = np.linspace(0, theta_rad, 120)
-    ax.plot(arc_r * np.cos(arc), arc_r * np.sin(arc), linewidth=2)
+    focus_sides = {
+        "sin": {"opposite", "hypotenuse"},
+        "cos": {"adjacent", "hypotenuse"},
+        "tan": {"opposite", "adjacent"},
+    }.get(focus, set())
 
-    ax.text(adjacent / 2, -0.35, f"Adjacent = {adjacent:.2f}", ha="center", fontsize=11)
-    ax.text(adjacent + 0.25, opposite / 2, f"Opposite = {opposite:.2f}", va="center", fontsize=11)
-    ax.text(adjacent / 2 - 0.25, opposite / 2 + 0.25, f"Hypotenuse = {hyp:.2f}", fontsize=11)
-    ax.text(arc_r * 1.15, arc_r * 0.38, f"{theta_deg:.1f}°", fontsize=11)
+    def side_width(side_name: str) -> float:
+        return 6 if side_name in focus_sides else 3.2
 
-    ax.set_title("Right Triangle: Opposite, Adjacent, Hypotenuse")
+    fig, ax = plt.subplots(figsize=(5.2, 4.4))
+
+    # 三條邊分別以固定顏色呈現
+    ax.plot([0, adjacent], [0, 0],
+            color=colors["adjacent"], linewidth=side_width("adjacent"), solid_capstyle="round")
+    ax.plot([adjacent, adjacent], [0, opposite],
+            color=colors["opposite"], linewidth=side_width("opposite"), solid_capstyle="round")
+    ax.plot([0, adjacent], [0, opposite],
+            color=colors["hypotenuse"], linewidth=side_width("hypotenuse"), solid_capstyle="round")
+
+    ax.scatter([0, adjacent, adjacent], [0, 0, opposite], s=45)
+
+    # 直角標記
+    if adjacent > EPS and opposite > EPS:
+        size = min(adjacent, opposite) * 0.13
+        ax.plot([adjacent - size, adjacent - size, adjacent],
+                [0, size, size], color="gray", linewidth=1.6)
+
+    # 角度弧線
+    arc_r = max(min(hyp * 0.22, 1.0), 0.35)
+    if theta_deg > EPS:
+        arc = np.linspace(0, theta_rad, 120)
+        ax.plot(arc_r * np.cos(arc), arc_r * np.sin(arc), color="gray", linewidth=2)
+    ax.text(arc_r * 1.12, max(arc_r * 0.18, 0.12), f"{theta_deg:.1f}°", fontsize=10)
+
+    # 邊長標示
+    ax.text(max(adjacent / 2, 0.05), -0.42, f"鄰邊 = {adjacent:.2f}",
+            ha="center", fontsize=10)
+    ax.text(adjacent + 0.18, max(opposite / 2, 0.08), f"對邊 = {opposite:.2f}",
+            va="center", fontsize=10)
+    ax.text(max(adjacent / 2 - 0.35, 0.05), max(opposite / 2 + 0.25, 0.25),
+            f"斜邊 = {hyp:.2f}", fontsize=10)
+
+    focus_title = {
+        "sin": "sin θ = 對邊 / 斜邊",
+        "cos": "cos θ = 鄰邊 / 斜邊",
+        "tan": "tan θ = 對邊 / 鄰邊",
+    }.get(focus, "Right Triangle")
+    ax.set_title(focus_title)
+
     ax.set_aspect("equal", adjustable="box")
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(-0.5, max(adjacent + 1.6, 4))
-    ax.set_ylim(-0.7, max(opposite + 1.2, 3))
+    ax.grid(True, alpha=0.25)
+    ax.set_xlim(-0.6, max(adjacent + 1.5, 3.5))
+    ax.set_ylim(-0.75, max(opposite + 1.25, 3.2))
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     return fig, adjacent, opposite
@@ -309,40 +350,89 @@ tabs = st.tabs([
 ])
 
 with tabs[0]:
-    st.header("模組 0：從直角三角形認識三角比")
-    col_ctrl, col_plot, col_info = st.columns([0.9, 1.25, 1.1])
+    st.header("三角比的定義")
+    col_ctrl, col_info = st.columns([0.9, 1.1])
 
     with col_ctrl:
-        theta0 = st.slider("角度 θ（度）", 5.0, 85.0, 30.0, 1.0, key="theta0")
+        theta0 = st.slider("角度 θ（度）", 0.0, 90.0, 30.0, 1.0, key="theta0")
         hyp0 = st.slider("斜邊長度", 1.0, 10.0, 5.0, 0.5, key="hyp0")
         st.markdown("#### 三角比定義")
         st.latex(r"\sin\theta=\frac{\text{對邊}}{\text{斜邊}}")
         st.latex(r"\cos\theta=\frac{\text{鄰邊}}{\text{斜邊}}")
         st.latex(r"\tan\theta=\frac{\text{對邊}}{\text{鄰邊}}")
 
-    with col_plot:
-        fig, adj, opp = draw_right_triangle(theta0, hyp0)
-        st.pyplot(fig, use_container_width=True)
+    theta0_rad = deg_to_rad(theta0)
+    adj = hyp0 * math.cos(theta0_rad)
+    opp = hyp0 * math.sin(theta0_rad)
+
+    if abs(adj) < EPS:
+        adj = 0.0
+    if abs(opp) < EPS:
+        opp = 0.0
+
+    sin0 = safe_div(opp, hyp0)
+    cos0 = safe_div(adj, hyp0)
+    tan0 = safe_div(opp, adj)
 
     with col_info:
-        sin0 = opp / hyp0
-        cos0 = adj / hyp0
-        tan0 = opp / adj
-        st.subheader("即時計算")
-        df = pd.DataFrame({
-            "項目": ["對邊", "鄰邊", "斜邊", "sin θ", "cos θ", "tan θ"],
-            "數值": [clean_num(opp), clean_num(adj), clean_num(hyp0), clean_num(sin0), clean_num(cos0), clean_num(tan0)],
-            "意義": [
-                "角 θ 對面的邊",
-                "靠近角 θ、但不是斜邊的邊",
-                "直角對面的最長邊",
-                "對邊 / 斜邊",
-                "鄰邊 / 斜邊",
-                "對邊 / 鄰邊"
-            ]
-        })
-        st.dataframe(df, use_container_width=True, hide_index=True)
-        st.info("教學重點：三角比不是先背公式，而是固定角度下的邊長比例。")
+        st.subheader("如何從圖形理解 sin、cos、tan？")
+        st.markdown(
+            """
+            三角比的重點不是先背公式，而是看懂「角 θ」和三條邊的關係。  
+            下面三個直角三角形的角度、大小與邊長完全相同，只是分別強調不同的比值。
+            """
+        )
+        st.markdown(
+            """
+            - 粉紅色：斜邊  
+            - 粉藍色：對邊  
+            - 粉綠色：鄰邊  
+            """
+        )
+
+    tri_col1, tri_col2, tri_col3 = st.columns(3)
+
+    with tri_col1:
+        fig_sin, _, _ = draw_right_triangle(theta0, hyp0, focus="sin")
+        st.pyplot(fig_sin, use_container_width=True)
+        st.latex(r"\sin\theta=\frac{\text{對邊}}{\text{斜邊}}")
+        st.write(f"sin θ = {opp:.2f} / {hyp0:.2f} = **{value_text(sin0)}**")
+
+    with tri_col2:
+        fig_cos, _, _ = draw_right_triangle(theta0, hyp0, focus="cos")
+        st.pyplot(fig_cos, use_container_width=True)
+        st.latex(r"\cos\theta=\frac{\text{鄰邊}}{\text{斜邊}}")
+        st.write(f"cos θ = {adj:.2f} / {hyp0:.2f} = **{value_text(cos0)}**")
+
+    with tri_col3:
+        fig_tan, _, _ = draw_right_triangle(theta0, hyp0, focus="tan")
+        st.pyplot(fig_tan, use_container_width=True)
+        st.latex(r"\tan\theta=\frac{\text{對邊}}{\text{鄰邊}}")
+        st.write(f"tan θ = {opp:.2f} / {adj:.2f} = **{value_text(tan0)}**")
+
+    st.subheader("即時計算")
+    df = pd.DataFrame({
+        "項目": ["對邊", "鄰邊", "斜邊", "sin θ", "cos θ", "tan θ"],
+        "數值": [
+            clean_num(opp),
+            clean_num(adj),
+            clean_num(hyp0),
+            value_text(sin0),
+            value_text(cos0),
+            value_text(tan0),
+        ],
+        "意義": [
+            "角 θ 對面的邊",
+            "靠近角 θ、但不是斜邊的邊",
+            "直角對面的最長邊",
+            "對邊 / 斜邊",
+            "鄰邊 / 斜邊",
+            "對邊 / 鄰邊；當鄰邊為 0 時無定義"
+        ]
+    })
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.info("教學重點：同一個直角三角形可以同時看出 sin、cos、tan；差別在於我們拿哪兩條邊來做比值。")
+
 
 with tabs[1]:
     st.header("模組 1：三角比與相似三角形")
